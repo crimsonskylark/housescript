@@ -2,5 +2,8 @@ C:\work\scripts\HouseScript\HouseScriptServer\bin\Debug\HouseScriptServer.dll
 C:\work\scripts\HouseScript\HouseScriptServer\bin\Debug\HouseScriptServer.pdb
 C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseScriptServer.csprojAssemblyReference.cache
 C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseScriptServer.csproj.CoreCompileInputs.cache
-C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseScriptServer.dll
-C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseScriptServer.pdb
+C:\work\base\server-data\resources\[dev]\[vfivemhouse]\[backend]\HouseServer.net.dll
+C:\work\base\server-data\resources\[dev]\[vfivemhouse]\[backend]\HouseServer.net.pdb
+C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseScriptServer.csproj.CopyComplete
+C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseServer.net.dll
+C:\work\scripts\HouseScript\HouseScriptServer\obj\Debug\HouseServer.net.pdb
