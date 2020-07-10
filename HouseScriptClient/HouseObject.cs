@@ -33,7 +33,7 @@ namespace CarScriptClient
             this.prop_hash = prop_hash;
             this.prop_pos = prop_pos;
             this.prop_rotation = prop_rotation;
-            this.time_created = (time_created == 0) ? time_created : GetUNIXTimeStamp();
+            this.time_created = (time_created == 0) ? GetUNIXTimeStamp() : time_created;
             this.owner = owner;
             this.price = price;
             this.sell_price = (int)(price * .75f);
@@ -46,6 +46,27 @@ namespace CarScriptClient
         {
             return (ulong)(TimeZoneInfo.ConvertTimeToUtc(DateTime.UtcNow) -
                    new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+        }
+
+        public override string ToString()
+        {
+            const string obj = @"
+            Owner: {0}\n
+            Hash: {1}\n
+            Position: Vector3({2}, {3}, {4})\n
+            Rotation: Vector3({5}, {6}, {7})\n
+            Time created: {8}\n
+            Price: {9}\n
+            Sell price: {10}\n
+            ";
+            return string.Format(obj,
+                                owner,
+                                prop_hash,
+                                prop_pos.X, prop_pos.Y, prop_pos.Z,
+                                prop_rotation.X, prop_rotation.Y, prop_rotation.Z,
+                                time_created,
+                                price,
+                                sell_price);
         }
 
     }
