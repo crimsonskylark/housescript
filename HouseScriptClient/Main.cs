@@ -48,13 +48,14 @@ namespace HouseScriptClient
                 DumpObjects();
             }
         }
-
+        /*
+         * <summary>
+         * This function dumps all the objects saved in <c>houseObjects</c>.
+         * </summary>
+         */
         private void DumpObjects()
         {
-            foreach (var o in houseObjects)
-            {
-                Debug.WriteLine(o.ToString());
-            }
+            houseObjects.ForEach(obj => Debug.WriteLine(obj.ToString()));
         }
     }
 }
