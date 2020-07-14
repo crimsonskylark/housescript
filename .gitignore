@@ -3,3 +3,12 @@
 ################################################################################
 
 /.vs
+HouseScriptClient/bin/**
+HouseScriptClient/obj/**
+HouseScriptServer/bin/**
+HouseScriptServer/obj/**
+*.dll
+*.pdb
+packages/*
+HouseScriptClient/obj/Debug/House.net.dll
+*.cache
