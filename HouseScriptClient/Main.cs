@@ -1,23 +1,28 @@
-﻿using CarScriptClient;
-using CitizenFX.Core;
+﻿using CitizenFX.Core;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using static CitizenFX.Core.Native.API;
 
-namespace HouseScriptClient
+namespace HouseScript.Client
 {
+
+    public class InvalidLicenseException : Exception
+    {
+        public InvalidLicenseException() { }
+        public InvalidLicenseException(string msg) : base(msg) { }
+    }
+
     // <summary>
     // Main class of the HouseArch script.
     // </summary>
     // <param name="houseObjects">All of the props within a 250 unit radius of the player.</param>
-    // <param name="curr_prop">Used to track the state of the currently selected prop.</param>
+    // <param name="currSelectedProp">Used to track the state of the currently selected prop.</param>
     public class HouseScriptClientMain : BaseScript
     {
         List<HouseObject> houseObjects = new List<HouseObject>();
-        Prop curr_prop;
+        Prop currSelectedProp;
 
         public HouseScriptClientMain()
         {
@@ -48,6 +53,7 @@ namespace HouseScriptClient
                 DumpObjects();
             }
         }
+
         /*
          * <summary>
          * This function dumps all the objects saved in <c>houseObjects</c>.
@@ -55,7 +61,22 @@ namespace HouseScriptClient
          */
         private void DumpObjects()
         {
-            houseObjects.ForEach(obj => Debug.WriteLine(obj.ToString()));
+            houseObjects.ForEach(obj => Debug.WriteLine(JsonConvert.SerializeObject(obj)));
+        }
+
+        [EventHandler("HouseArchClient:OnEnterHouse")]
+        private void OnEnterHouse(int houseId)
+        {
+            TriggerServerEvent("HouseArch:GetUserObjects", 1);
+        }
+
+        [EventHandler("HouseArchClient:OnReceiveHouseObjects")]
+        private void OnReceiveHouseObjects(string obj)
+        {
+            houseObjects = JsonConvert.DeserializeObject<List<HouseObject>>(obj);
+            houseObjects.ForEach(
+                e => CreateObject(e.propHash, Game.PlayerPed.Position.X-5.0f, Game.PlayerPed.Position.Y, Game.PlayerPed.Position.Z, true, true, true)
+                );
         }
     }
 }
