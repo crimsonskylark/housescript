@@ -9,6 +9,6 @@ HouseScriptServer/bin/**
 HouseScriptServer/obj/**
 *.dll
 *.pdb
-packages/*
+packages/**
 HouseScriptClient/obj/Debug/House.net.dll
 *.cache
