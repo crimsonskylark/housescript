@@ -6,25 +6,31 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using HouseScript.Client;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
 
 namespace HouseScript.Server
 {
     public class HouseScriptServer : BaseScript
     {
 
-        MySqlConnection dbInterface = new MySqlConnection(GetConvar("mysql_connection_string", ""));
+        private MySqlConnection dbInterface = new MySqlConnection(GetConvar("mysql_connection_string", ""));
         /*
          * Let `Player` be 45, and `houseId` be 1:
          * hObjCache[45]
          *  \
-         *   <1, { HouseObject[0], HouseObject[1], HouseObject[2] }> <-------
-         *   <2, { HouseObject[0], HouseObject[1], HouseObject[2] }>
-         *   <3, { HouseObject[0], HouseObject[1], HouseObject[2] }>
+         *   <1, { HouseObject[0], HouseObject[1], HouseObject[2]... HouseObject[249] }> <-------
+         *   <2, { HouseObject[0], HouseObject[1], HouseObject[2]... HouseObject[249] }>
+         *   <3, { HouseObject[0], HouseObject[1], HouseObject[2]... HouseObject[249] }>
          */
-        Dictionary<Player, Dictionary<int, List<HouseObject>>> hobjCache = new Dictionary<Player, Dictionary<int, List<HouseObject>>>();
+        private Dictionary<Player, Dictionary<int, List<HouseObject>>> hobjCache = new Dictionary<Player, Dictionary<int, List<HouseObject>>>();
+
+        string command = GetConvar("houseArchCmd", "house");
 
         public HouseScriptServer()
-        {}
+        {
+            RegisterCommand(command, new Action<int, List<object>, string>(OpenInterface), false);
+        }
 
         /*
          * <summary>
@@ -33,13 +39,14 @@ namespace HouseScript.Server
          * </summary>
          */
         [EventHandler("playerJoining")]
-        private void OnPlayerJoining([FromSource] Player player)
+        private async void OnPlayerJoining([FromSource] Player player)
         {
             if (!hobjCache.ContainsKey(player))
             {
                 hobjCache.Add(player, new Dictionary<int, List<HouseObject>>());
-                GetPlayerObjects(player);
+                await GetPlayerObjects(player);
             }
+            TriggerClientEvent(player, "chat:addSuggestion", $"/{command}", "Open the HouseArch interface");
         }
 
         /*
@@ -51,37 +58,33 @@ namespace HouseScript.Server
          * </summary>
          * <param name="player">The current <c>Player</c> object</param>
          */
-        internal void GetPlayerObjects(Player player)
+        internal async Task GetPlayerObjects(Player player)
         {
-            var playerRockstarIdentifier = player.Identifiers
-                                .ToList()
-                                .Where(e => e.StartsWith("license:"))
-                                .First()
-                                .Substring(8);
+            var playerRockstarIdentifier = GetPlayerRockstarId(player);
             Debug.WriteLine($"[HouseArch] Getting owner objects for {playerRockstarIdentifier}");
             if (playerRockstarIdentifier.Length > 1)
             {
                 using (var command = dbInterface.CreateCommand())
                 {
-                    command.CommandText = @"SELECT * FROM house_objects WHERE owner=@owner LIMIT 300;";
+                    command.CommandText = @"SELECT * FROM house_objects WHERE owner=@owner;"; // Object limit is per house, not per player.
                     command.Parameters.AddWithValue("@owner", playerRockstarIdentifier);
 
                     try
                     {
-                        using (var r = command.ExecuteReader())
+                        using (var r = await command.ExecuteReaderAsync())
                         {
-                            while (r.Read())
+                            while (await r.ReadAsync())
                             {
                                 List<HouseObject> temp = new List<HouseObject>();
                                 HouseObject currObj = JsonConvert.DeserializeObject<HouseObject>(r.GetString(2));
                                 temp.Add(currObj);
-                                int key = r.GetInt32(3);
-                                if (!hobjCache[player].ContainsKey(key))
+                                int houseid = r.GetInt32(3);
+                                if (!hobjCache[player].ContainsKey(houseid))
                                 {
-                                    hobjCache[player].Add(key, temp);
+                                    hobjCache[player].Add(houseid, temp);
                                 } else
                                 {
-                                    hobjCache[player][key].Add(currObj);
+                                    hobjCache[player][houseid].Add(currObj);
                                 }
                                 Debug.WriteLine($"[HouseArch] Caching object: {r.GetString(2)} at house {r.GetInt32(3)}");
                             }
@@ -93,6 +96,15 @@ namespace HouseScript.Server
                     }
                 }
             }
+        }
+
+        private string GetPlayerRockstarId(Player p)
+        {
+            return p.Identifiers
+                    .ToList()
+                    .Where(e => e.StartsWith("license:"))
+                    .First()
+                    .Substring(8);
         }
 
         /*
@@ -107,7 +119,7 @@ namespace HouseScript.Server
             if (hobjCache.ContainsKey(player))
             {
                 hobjCache.Remove(player);
-                Debug.WriteLine($"[HouseArch] ...removed.");
+                Debug.WriteLine($"[HouseArch] ... removed.");
             }
         }
 
@@ -115,7 +127,7 @@ namespace HouseScript.Server
         private void InitDb(string resName)
         {
             if (GetCurrentResourceName() != resName) { return; }
-            dbInterface.Open();
+            dbInterface.OpenAsync();
             Debug.WriteLine("[HouseArch] Opening database connection...");
         }
 
@@ -134,12 +146,46 @@ namespace HouseScript.Server
         }
 
         [EventHandler("HouseArch:GetAllUserObjects")]
-        private void OnGetAllUserObjects([FromSource] Player player, int houseId)
+        private async void OnGetAllUserObjects([FromSource] Player player, int houseId)
         {
             if (hobjCache.ContainsKey(player))
             {
                 TriggerClientEvent(player, "HouseArchClient:OnReceiveHouseObjects", JsonConvert.SerializeObject(hobjCache[player][houseId]));
+            } else
+            {
+                hobjCache.Add(player, new Dictionary<int, List<HouseObject>>());
+                await GetPlayerObjects(player);
             }
+        }
+
+        private void OpenInterface(int source, List<object> args, string raw)
+        {
+            TriggerClientEvent(Players[source], "HouseArchClient:OpenInterface");
+        }
+
+        private void SaveObject(Player player, string obj)
+        {
+            using (var command = dbInterface.CreateCommand())
+            {
+                command.CommandText = @"INSERT INTO house_objects(owner, object, houseid) VALUES(@owner, @obj, @hid);";
+                command.Parameters.AddWithValue("@owner", GetPlayerRockstarId(player));
+                command.Parameters.AddWithValue("@obj", obj);
+                command.Parameters.AddWithValue("@hid", new Random().Next(1, 5));
+                var retval = command.ExecuteNonQuery();
+                if (retval >= 1)
+                {
+                    Debug.WriteLine($"Saved object\n{obj}");
+                } else
+                {
+                    Debug.WriteLine("No objects were saved.");
+                }
+            }
+        }
+
+        [EventHandler("HouseArch:PlayerAcquireObject")]
+        private void OnPlayerAcquireObject([FromSource] Player player, string obj)
+        {
+            SaveObject(player, obj);
         }
     }
 }

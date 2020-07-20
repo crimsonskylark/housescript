@@ -1,8 +1,10 @@
 ﻿using CitizenFX.Core;
+using CitizenFX.Core.Native;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using static CitizenFX.Core.Native.API;
 
 namespace HouseScript.Client
@@ -23,7 +25,7 @@ namespace HouseScript.Client
     {
         List<HouseObject> houseObjects = new List<HouseObject>();
         Prop currSelectedProp;
-
+        bool houseSpawned = false;
         public HouseScriptClientMain()
         {
             Debug.WriteLine("Starting up HouseArchCore");
@@ -31,27 +33,26 @@ namespace HouseScript.Client
         }
 
         // <summary>
-        // This function will be called by the runtime once the resource has been started.
+        // This function is called by the server once the user calls the correct command.
         // </summary>
-        // <param name="resname">The name of the resource. This parameter will be passed by the runtime.</param>
-        [EventHandler("onClientResourceStart")]
-        public void Init(string resname)
+        [EventHandler("HouseArchClient:OpenInterface")]
+        public void Init()
         {
-            if (GetCurrentResourceName() != resname) { return; }
 
             World.GetAllProps()
                 .Where(e => e.Position.DistanceToSquared(Game.PlayerPed.Position) < 250)
                 .ToList()
                 .ForEach(e => houseObjects.Add(new HouseObject(e.Model.Hash, e.Position, e.Rotation, 0, "license:", 350)));
 
-            if (houseObjects.Count < 1)
-            {
-                Debug.WriteLine("No props were found in a 250 unit radius.");
-                Debug.WriteLine("Assuming the house is empty.");
-            } else
-            {
-                DumpObjects();
-            }
+            //if (houseObjects.Count < 1)
+            //{
+            //    Debug.WriteLine("No props were found in a 250 unit radius.");
+            //    Debug.WriteLine("Assuming the house is empty.");
+            //} else
+            //{
+            //    DumpObjects();
+            //}
+            OnEnterHouse(0);
         }
 
         /*
@@ -61,22 +62,45 @@ namespace HouseScript.Client
          */
         private void DumpObjects()
         {
-            houseObjects.ForEach(obj => Debug.WriteLine(JsonConvert.SerializeObject(obj)));
+            //houseObjects.ForEach(obj => TriggerServerEvent("HouseArch:PlayerAcquireObject", JsonConvert.SerializeObject(obj)));
         }
 
         [EventHandler("HouseArchClient:OnEnterHouse")]
         private void OnEnterHouse(int houseId)
         {
-            TriggerServerEvent("HouseArch:GetUserObjects", 1);
+            TriggerServerEvent("HouseArch:GetAllUserObjects", 1);
         }
 
         [EventHandler("HouseArchClient:OnReceiveHouseObjects")]
-        private void OnReceiveHouseObjects(string obj)
+        private async void OnReceiveHouseObjects(string obj)
         {
+            Debug.WriteLine("here");
             houseObjects = JsonConvert.DeserializeObject<List<HouseObject>>(obj);
-            houseObjects.ForEach(
-                e => CreateObject(e.propHash, Game.PlayerPed.Position.X-5.0f, Game.PlayerPed.Position.Y, Game.PlayerPed.Position.Z, true, true, true)
-                );
+            //houseObjects.ForEach(
+            //    async e =>
+            //    {
+            //        Prop p = await World.CreateProp(new Model(e.propHash), new Vector3(Game.PlayerPed.Position.X + new Random().Next(-5, 5), Game.PlayerPed.Position.Y + new Random().Next(-5, 5), Game.PlayerPed.Position.Z), true, true);
+            //        p.Rotation = e.propRotation;
+            //    }
+            //);
+            while (!HasModelLoaded((uint)GetHashKey("dons_house_sm1_shell")))
+            {
+                RequestModel((uint)GetHashKey("dons_house_sm1_shell"));
+                await Delay(100);
+            }
+            Prop houseObjHandle;
+            Vector3 houseLocation = new Vector3(-895.58f, -49.86f, 50.04f);
+            float gz = 0;
+            GetGroundZFor_3dCoord(houseLocation.X, houseLocation.Y, houseLocation.Z, ref gz, false);
+            if (!houseSpawned)
+            {
+                houseObjHandle = await World.CreateProp(GetHashKey("dons_house_sm1_shell"), houseLocation - new Vector3(0.0f, 0.0f, gz), false, false);
+                FreezeEntityPosition(houseObjHandle.Handle, true);
+                houseSpawned = true;
+            }
+            Debug.WriteLine(GetHashKey("v_16_dt").ToString());
+            await World.CreateProp(-647884455, Game.PlayerPed.Position, false, false);
+            await Delay(0);
         }
     }
 }
